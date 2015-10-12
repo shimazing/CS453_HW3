@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <fstream>
 #include <map>
 #include <utility>
 
@@ -32,10 +33,10 @@ SourceManager *m_srcmgr;
 class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor>
 {
 public:
-    MyASTVisitor(SourceManager &srcmgr_)
-        :srcmgr(srcmgr_)
+    MyASTVisitor(SourceManager &srcmgr_, Rewriter &rewriter_)
+        :srcmgr(srcmgr_), rewriter(rewriter_)
     {
-        id = 0;
+        count = 0;
         countBranch = 0;
     }
 
@@ -44,7 +45,10 @@ public:
         SourceLocation startLoc = s->getLocStart();
         unsigned int lineNum = srcmgr.getExpansionLineNumber(startLoc);
         unsigned int colNum = srcmgr.getExpansionColumnNumber(startLoc);
-                
+        // increase totalBranchLine
+        // use branchTmp,lineIdx to trace branches
+
+
         if (isa<IfStmt>(s)) {
             printBranchLineColFilename("If", lineNum, colNum, filename);
         } else if (isa<ForStmt>(s)) {
@@ -77,11 +81,24 @@ public:
     
     bool VisitFunctionDecl(FunctionDecl *f) {
         // Fill out this function for your homework
+        // SourceManager &srcmgr = *m_srcmgr;
         string funcname = f->getName();
-        if (f->hasBody()) {
+        /*if (f->hasBody()) {
             cout<<"function:    "<<funcname<<endl;
             SourceLocation startLoc = f->getLocStart();
             filename = srcmgr.getFilename(startLoc);
+        }*/
+           
+        if (!funcname.compare("main")) {
+            char textTmp[700];
+            CompoundStmt *mainBody = cast<CompoundStmt>(f->getBody());
+            SourceLocation startMainBody = mainBody->getLocStart();
+            sourceLocation endMainBody = mainBody->getLocEnd();
+            sprintf(textTmp,"dadfsasd");
+            rewriter.InsertTextAfter(startMainBody,textTmp);
+            sprintf(textTmp, "dadadsad");
+            rewriter.InsertTextAfter(endMainbody, textTmp);
+        
         }
         return true;
     }
@@ -91,17 +108,18 @@ public:
     }
 
 private:
-    int id;
+    int count;
     int countBranch;
     string filename;
     SourceManager &srcmgr;
+    Rewriter &rewriter;
 
     void printBranchLineColFilename(string branchName, unsigned int lineNum, 
                               unsigned int colNum, string filename) {
         
         cout<<"    "<<setw(10)<<left<<branchName;
         cout<<"ID: ", cout.width(7);
-        cout<<id++;
+        cout<<count++;
         cout<<" Line: ", cout.width(7);
         cout<<lineNum;
         cout<<" Col: ", cout.width(7);
@@ -120,8 +138,8 @@ private:
 class MyASTConsumer : public ASTConsumer
 {
 public:
-    MyASTConsumer(SourceManager &srcmgr)
-        : Visitor(srcmgr) //initialize MyASTVisitor
+    MyASTConsumer(SourceManager &srcmgr, Rewriter &rewriter)
+        : Visitor(srcmgr, rewriter) //initialize MyASTVisitor
     { }
 
     virtual bool HandleTopLevelDecl(DeclGroupRef DR) {
@@ -168,8 +186,6 @@ int main(int argc, char *argv[])
     // SourceManager handles loading and caching of source files into memory.
     TheCompInst.createSourceManager(FileMgr);
     SourceManager &SourceMgr = TheCompInst.getSourceManager();
-    //global var  m_srcmgr
-    //m_srcmgr = &SourceMgr;
 
     // Prreprocessor runs within a single source file
     TheCompInst.createPreprocessor();
@@ -223,14 +239,21 @@ int main(int argc, char *argv[])
     const FileEntry *FileIn = FileMgr.getFile(argv[1]);
     SourceMgr.createMainFileID(FileIn);
     
+    string filename(argv[1]);
+    string outputName = filename.substr(0, filename.length()-2) + "-cov.c"; 
     // Inform Diagnostics that processing of a source file is beginning. 
     TheCompInst.getDiagnosticClient().BeginSourceFile(TheCompInst.getLangOpts(),&TheCompInst.getPreprocessor());
     
     // Create an AST consumer instance which is going to get called by ParseAST.
-    MyASTConsumer TheConsumer(SourceMgr);
+    MyASTConsumer TheConsumer(SourceMgr, TheRewriter);
 
     // Parse the file to AST, registering our consumer as the AST consumer.
     ParseAST(TheCompInst.getPreprocessor(), &TheConsumer, TheCompInst.getASTContext());
+    const RewriteBuffer *RewriteBuf = TheRewriter.getRewriteBufferFor(SourceMgr.getMainFileID());
+    ofstream output(outputName.c_str());
+    if (RewriteBuf)
+        output << string(RewriteBuf->begin(), RewriteBuf->end());
+    output.close();    
     TheConsumer.printBranchNum();
     return 0;
 }
