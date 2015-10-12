@@ -33,36 +33,71 @@ SourceManager *m_srcmgr;
 class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor>
 {
 public:
-    MyASTVisitor(SourceManager &srcmgr_, Rewriter &rewriter_)
-        :srcmgr(srcmgr_), rewriter(rewriter_)
+    MyASTVisitor(SourceManager &srcmgr_, Rewriter &rewriter_, ofstream &measure_)
+        :srcmgr(srcmgr_), rewriter(rewriter_), measure(measure_)
     {
         count = 0;
         countBranch = 0;
+        prevLineNum = 0;
+        sameLineCnt = 1;
     }
 
     bool VisitStmt(Stmt *s) {
         // Fill out this function for your homework
         SourceLocation startLoc = s->getLocStart();
         unsigned int lineNum = srcmgr.getExpansionLineNumber(startLoc);
-        unsigned int colNum = srcmgr.getExpansionColumnNumber(startLoc);
+        //unsigned int colNum = srcmgr.getExpansionColumnNumber(startLoc);
         // increase totalBranchLine
-        // use branchTmp,lineIdx to trace branches
-
-
+        // use branchTmp,lineNum, lineIdx to trace branches
+        char textTmp[700];
+        
         if (isa<IfStmt>(s)) {
-            printBranchLineColFilename("If", lineNum, colNum, filename);
+            //measure<<setw(8)<<left<<lineNum;
+            //measure<<setw(16)<<left<<0;
+            //measure<<setw(16)<<left<<0;
+            IfStmt *ifstmt = cast<IfStmt>(s);
+            Expr *cond = ifstmt->getCond();
+            //measure<<rewriter.ConvertToString(cond)<<endl;
+            writeMeasure("If", lineNum, cond);
+
+            Stmt * then_ = ifstmt->getThen();
+            SourceLocation thenStart = then_->getLocStart();
+
+            sprintf(textTmp, "find");
+
+            Stmt * else_ = ifstmt->getElse();
+            if (else_ != NULL)
+                SourceLocation elseStart = else_->getLocStart();
+
+
+
+          //  printBranchLineColFilename("If", lineNum, colNum, filename);
         } else if (isa<ForStmt>(s)) {
-            printBranchLineColFilename("For", lineNum, colNum, filename);
+            ForStmt *forstmt = cast<ForStmt>(s);
+            Expr *cond = forstmt->getCond();
+            writeMeasure("For", lineNum, cond);
+          //  printBranchLineColFilename("For", lineNum, colNum, filename);
         } else if (isa<WhileStmt>(s)) {
-            printBranchLineColFilename("While", lineNum, colNum, filename);
+            WhileStmt *whilestmt = cast<WhileStmt>(s);
+            Expr *cond = whilestmt->getCond();
+            writeMeasure("While", lineNum, cond);
+          //  printBranchLineColFilename("While", lineNum, colNum, filename);
         } else if (isa<CaseStmt>(s)) {
-            printBranchLineColFilename("Case", lineNum, colNum, filename);
+            writeMeasure("Case", lineNum, s);
+          //  printBranchLineColFilename("Case", lineNum, colNum, filename);
         } else if (isa<DoStmt>(s)) {
-            printBranchLineColFilename("Do", lineNum, colNum, filename);
+            DoStmt *dostmt = cast<DoStmt>(s);
+            Expr *cond = dostmt->getCond();
+            writeMeasure("Do", lineNum, cond);
+          //  printBranchLineColFilename("Do", lineNum, colNum, filename);
         } else if (isa<DefaultStmt>(s)) {
-            printBranchLineColFilename("Default", lineNum, colNum, filename);
+            writeMeasure("Default", lineNum, NULL);
+          //  printBranchLineColFilename("Default", lineNum, colNum, filename);
         } else if (isa<ConditionalOperator>(s)) {
-            printBranchLineColFilename("?:", lineNum, colNum, filename);
+            ConditionalOperator *ternary = cast<ConditionalOperator>(s);
+            Expr *cond = ternary->getCond();
+            writeMeasure("?:", lineNum, cond);
+          //  printBranchLineColFilename("?:", lineNum, colNum, filename);
         } else if (isa<SwitchStmt>(s)) {
             SwitchStmt *switchstmt = cast<SwitchStmt>(s);
             SwitchCase *branch = switchstmt->getSwitchCaseList();
@@ -74,7 +109,8 @@ public:
                 }
             }
             if(!hasDefault)
-                   printBranchLineColFilename("ImpDef", lineNum, colNum, filename);
+                writeMeasure("ImpDef", lineNum, NULL);
+                   //printBranchLineColFilename("ImpDef", lineNum, colNum, filename);
         }
         return true;
     }
@@ -93,27 +129,31 @@ public:
             char textTmp[700];
             CompoundStmt *mainBody = cast<CompoundStmt>(f->getBody());
             SourceLocation startMainBody = mainBody->getLocStart();
-            sourceLocation endMainBody = mainBody->getLocEnd();
+            SourceLocation endMainBody = mainBody->getLocEnd();
             sprintf(textTmp,"dadfsasd");
             rewriter.InsertTextAfter(startMainBody,textTmp);
             sprintf(textTmp, "dadadsad");
-            rewriter.InsertTextAfter(endMainbody, textTmp);
+            rewriter.InsertTextAfter(endMainBody, textTmp);
         
         }
         return true;
     }
-
+    
     void printBranchNum() {
         cout<<"Total number of branches: "<<countBranch<<endl;
     }
-
+    void coverage() {
+        measure<<"Covered: 0 / Total: "<<countBranch<<" = 0.0%"<<endl;
 private:
     int count;
     int countBranch;
     string filename;
     SourceManager &srcmgr;
     Rewriter &rewriter;
-
+    ofstream &measure;
+    int prevLineNum;
+    int sameLineCnt;
+/*
     void printBranchLineColFilename(string branchName, unsigned int lineNum, 
                               unsigned int colNum, string filename) {
         
@@ -131,6 +171,37 @@ private:
         else
             countBranch += 2;
     }
+*/
+
+    void writeMeasure(string branchName, int lineNum, Stmt *cond) {
+        measure<<setw(8)<<left<<lineNum;
+        measure<<setw(16)<<left<<0;
+        measure<<setw(16)<<left<<0;
+        //IfStmt *ifstmt = cast<IfStmt>(s);
+        //Expr *cond = ifstmt->getCond();
+        
+        if (!branchName.compare("Case")) {
+            CaseStmt *casestmt = cast<CaseStmt>(cond);
+            string lhs = rewriter.ConvertToString(casestmt->getLHS());
+            string rhs = rewriter.ConvertToString(casestmt->getRHS());
+            measure<<lhs<<" == "<<rhs<<endl;
+        }
+        else if (cond == NULL)
+            measure<<"-"<<endl;
+        else
+            measure<<rewriter.ConvertToString(cond)<<endl;
+
+        if(prevLineNum == lineNum)
+            sameLineCnt++;
+        else
+            sameLineCnt = 1;
+        prevLineNum = lineNum;
+        if ((!branchName.compare("ImpDef")) || (!branchName.compare("Default")) 
+                || (!branchName.compare("Case"))) countBranch ++;
+        else
+            countBranch += 2;
+
+    }
 
 };
 
@@ -138,8 +209,8 @@ private:
 class MyASTConsumer : public ASTConsumer
 {
 public:
-    MyASTConsumer(SourceManager &srcmgr, Rewriter &rewriter)
-        : Visitor(srcmgr, rewriter) //initialize MyASTVisitor
+    MyASTConsumer(SourceManager &srcmgr, Rewriter &rewriter, ofstream &measure)
+        : Visitor(srcmgr, rewriter, measure) //initialize MyASTVisitor
     { }
 
     virtual bool HandleTopLevelDecl(DeclGroupRef DR) {
@@ -241,19 +312,41 @@ int main(int argc, char *argv[])
     
     string filename(argv[1]);
     string outputName = filename.substr(0, filename.length()-2) + "-cov.c"; 
+    string measureName = filename.substr(0, filename.length()-2) + "-cov-measure.txt";
+
+    ofstream output(outputName.c_str());
+    ofstream measure(measureName.c_str());
+    
+    measure<< "Line#\t|# of execution\t|# of execution\t|conditional\n";
+    measure<< "\t|of then branch\t|of else branch\t|expression\n";
+   
+/*
+     cout<<"    "<<setw(10)<<left<<branchName;
+     136         cout<<"ID: ", cout.width(7);
+     137         cout<<count++;
+     138         cout<<" Line: ", cout.width(7);
+     139         cout<<lineNum;
+     140         cout<<" Col: ", cout.width(7);
+     141         cout<<colNum;
+     142         cout<<" Filename: "<<filename<<endl;
+*/
+
+
+
     // Inform Diagnostics that processing of a source file is beginning. 
     TheCompInst.getDiagnosticClient().BeginSourceFile(TheCompInst.getLangOpts(),&TheCompInst.getPreprocessor());
     
+    //ofstream output(outputName.c_str());
     // Create an AST consumer instance which is going to get called by ParseAST.
-    MyASTConsumer TheConsumer(SourceMgr, TheRewriter);
+    MyASTConsumer TheConsumer(SourceMgr, TheRewriter, measure);
 
     // Parse the file to AST, registering our consumer as the AST consumer.
     ParseAST(TheCompInst.getPreprocessor(), &TheConsumer, TheCompInst.getASTContext());
     const RewriteBuffer *RewriteBuf = TheRewriter.getRewriteBufferFor(SourceMgr.getMainFileID());
-    ofstream output(outputName.c_str());
     if (RewriteBuf)
         output << string(RewriteBuf->begin(), RewriteBuf->end());
-    output.close();    
+    output.close();
+    measure.close();
     TheConsumer.printBranchNum();
     return 0;
 }
