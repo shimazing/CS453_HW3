@@ -16,7 +16,7 @@ int lineIdx = 0;
 Branch *branchTmp = NULL;
 Branch *findBranch(int lineNum, int lineIdx) {
    Branch *bp;
-   for (bp = bList; bp != NULL; bp = bp->nextBranch)
+   for (bp = bList; bp != NULL; bp = bp->nextBranch)////////////////////////////////
        if((bp->lineNum == lineNum) && (bp->lineIdx == lineIdx))
            return bp;
    return NULL;
@@ -59,19 +59,29 @@ int main() {
 		exit(1);
 	}
 	int r = 0;
-	char tmp[255];
+	char tmp[500];
 	Branch *bp;
-	Branch *prevBranch = NULL;
-	for(;!feof(fp); r++) {
+	Branch *prevBranch;
+	for(;!feof(fp);r++) {
+        prevBranch = bp;
 		if (r < 2)
 			fgets(tmp, 100, fp);
 		else {
 			bp = (struct branch *)malloc(sizeof(struct branch));
 			if (r == 2)
 				bList = bp;
-			fscanf(fp, "%d\t%d\t%d", &bp->lineNum,  &bp->thenCount, &bp->elseCount);
-			fgets(tmp,250,fp);
-            printf("%d %d %d %s\n", bp->lineNum, bp->thenCount, bp->elseCount, tmp);
+            //fscanf(fp,"%d",&bp->lineNum);
+            //fscanf(fp,"%d",&bp->thenCount);
+            //fscanf(fp,"%d",&bp->elseCount);
+            //fgets(tmp, 100, fp);
+            //fscanf(fp,"%s",tmp);
+			fscanf(fp, "%d %d %d", &bp->lineNum, &bp->thenCount, &bp->elseCount);
+            fgets(tmp, 100, fp);
+            if(feof(fp))
+                break;
+            printf("%d\t%d\t%d\t%s", bp->lineNum, bp->thenCount, bp->elseCount, tmp);
+            //if (j!=4)
+            //    break;
 			bp->condExp = (char *)malloc(strlen(tmp)+1);
 			strcpy(bp->condExp, tmp);
 			bp->nextBranch = 0;
@@ -81,9 +91,13 @@ int main() {
 					bp->lineIdx = prevBranch->lineIdx + 1;
 				prevBranch->nextBranch = bp;
 			}
-			prevBranch = bp;
 		}
+        //printf("AAAAA\n");
+        //if(feof(fp))
+        //    break;
 	}
+
+    
 	fclose(fp);
 
 	int a = 0;		
@@ -105,31 +119,35 @@ int main() {
 		a = 4;
 	}	
 	
-	//for	
-	for( int i = 0 ; i < 10 ; i++ ) {
+	//for
+    int i;
+	for(i = 0 ; i < 10 ; i++ ) {
+        printf("EEEE\n");
 	branchTmp = findBranch(39, 0);
 	(branchTmp->thenCount)++;
 		a += i;
 	}
-	//if (!(i < 10)) {
+	if (!(i < 10)) {
 		branchTmp = findBranch(39, 0);
 		(branchTmp->elseCount)++;
-	//}
+	}
 	
 	//while
 	while( a < 100 ) {
+        printf("DDDD\n");
 	branchTmp = findBranch(44, 0);
 	(branchTmp->thenCount)++;
 		a += a;
 	}
-	//if (!(a < 100)) {
+	if (!(a < 100)) {
 		branchTmp = findBranch(44, 0);
 		(branchTmp->elseCount)++;
-	//}
+	}
 	
 	//do-while
 	int first = 1;
 do {
+    printf("CCCCC\n");
 if(!first){
 	branchTmp = findBranch(49, 0);
 	(branchTmp->thenCount)++;
@@ -154,10 +172,10 @@ if(!first){
 				a += 1;
 		}
 	} while( a == 0 );
-	//if (!(a == 0)) {
+	if (!(a == 0)) {
 		branchTmp = findBranch(49, 0);
 		(branchTmp->elseCount)++;
-	//}
+	}
 
 	if ( a>1 ? a-1 :a ) {
 	branchTmp = findBranch(63, 0);
@@ -193,17 +211,18 @@ if(!first){
 	Branch *bIter, *bTmp;
 	int covered = 0;
 	for (bIter = bList; bIter!=0;){
+        printf("BBBBB\n");
 		if (bIter->thenCount!=0 && bIter->elseCount!=0)
 			covered += 2;
 		else if( bIter->thenCount!=0 || bIter->elseCount!=0)
 			covered += 1;
-		fprintf(fp, "%8d%16d%16d%s\n", bIter->lineNum, bIter->thenCount, bIter->elseCount, bIter->condExp);
+		fprintf(fp, "%8d%16d%16d%s", bIter->lineNum, bIter->thenCount, bIter->elseCount, bIter->condExp);
 		free(bIter->condExp);
 		bTmp = bIter;
 		bIter = bIter->nextBranch;
 		free(bTmp);
 	}
-	fprintf(fp, "Covered: %d / Total: 111 = %f%%", covered/111*100);
+	fprintf(fp, "Covered: %d / Total: 111 = %f%%\n", covered/111*100);
 	fclose(fp);
 }
 

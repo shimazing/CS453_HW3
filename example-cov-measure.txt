@@ -1,0 +1,22 @@
+Line#	|# of execution	|# of execution	|conditional
+	|of then branch	|of else branch	|expression
+4       0               0               x > 10
+19      0               0               a == 1
+31      0               0               a == 1
+35      0               0               a == 1 || a == 3
+37      0               0               a == 2
+44      0               0               i < 10
+48      0               0               a < 100
+53      0               0               a == 0
+55      0               0               100 == <NULL>
+58      0               0               200 == <NULL>
+59      0               0               a == 3
+62      0               0               -
+67      0               0               a > 1 ? a - 1 : a
+67      0               0               a > 1
+71      0               0               -
+72      0               0               150 == <NULL>
+75      0               0               250 == <NULL>
+80      0               0               0
+80      0               0               a > 100
+Covered: 0 / Total: 32 = 0.0%

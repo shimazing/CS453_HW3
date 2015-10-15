@@ -1,0 +1,43 @@
+Line#	|# of execution	|# of execution	|conditional
+	|of then branch	|of else branch	|expression
+       4               0               0               x > 10
+
+      19               0               0               a == 1
+
+      30               0               0               a == 1 || a == 3
+
+      32               0               1               a == 2
+
+      39              10               1               i < 10
+
+      44               2               1               a < 100
+
+      49               0               1               a == 0
+
+      51               0               0               100 == <NULL>
+
+      54               0               0               200 == <NULL>
+
+      55               0               0               a == 3
+
+      58               1               0               default
+
+      63               1               0               a > 1 ? a - 1 : a
+
+      63               0               0               a > 1
+
+      67               0               0               -
+
+      68               1               0               150 == <NULL>
+
+      71               0               0               250 == <NULL>
+
+      76               0               0               0
+
+      76               0               0               a > 100
+
+       0               0               0Covered: 0 / Total: 30 = 0.0%
+
+       0               0               0Covered: 0 / Total: 30 = 0.0%
+
+Covered: 0 / Total: 111 = 0.000000%

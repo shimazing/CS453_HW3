@@ -33,13 +33,13 @@ SourceManager *m_srcmgr;
 class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor>
 {
 public:
-    MyASTVisitor(SourceManager &srcmgr_, Rewriter &rewriter_, ofstream &measure_)
-        :srcmgr(srcmgr_), rewriter(rewriter_), measure(measure_)
+    MyASTVisitor(SourceManager &srcmgr_, Rewriter &rewriter_, ofstream &measure_, LangOptions &langOpts_)
+        :srcmgr(srcmgr_), rewriter(rewriter_), measure(measure_), langOpts(langOpts_)
     {
         count = 0;
         countBranch = 0;
         prevLineNum = 0;
-        sameLineCnt = 1;
+        sameLineCnt = 0;
     }
 
     bool VisitStmt(Stmt *s) {
@@ -50,48 +50,105 @@ public:
         // increase totalBranchLine
         // use branchTmp,lineNum, lineIdx to trace branches
         char textTmp[700];
-        
+        Stmt *thenStmt;
+        Stmt *elseStmt;
+        SourceLocation thenLoc;
+        SourceLocation elseLoc;
+
         if (isa<IfStmt>(s)) {
-            //measure<<setw(8)<<left<<lineNum;
-            //measure<<setw(16)<<left<<0;
-            //measure<<setw(16)<<left<<0;
-            IfStmt *ifstmt = cast<IfStmt>(s);
-            Expr *cond = ifstmt->getCond();
-            //measure<<rewriter.ConvertToString(cond)<<endl;
+            IfStmt *ifStmt = cast<IfStmt>(s);
+            Expr *cond = ifStmt->getCond();
             writeMeasure("If", lineNum, cond);
+            /*thenBranch*/
+            thenStmt = ifStmt->getThen();
+            thenLoc = thenStmt->getLocStart().getLocWithOffset(1);
+            //thenLoc = Lexer::findLocationAfterToken(thenLoc, tok::l_brace, srcmgr,langOpts,false);
+            if (thenLoc.isValid()) {
+                //rewriter.InsertTextAfter(thenLoc, "AAAAAAAA\n");
+                sprintf(textTmp, "\n\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->thenCount)++;",lineNum, sameLineCnt);
+                rewriter.InsertTextAfter(thenLoc, textTmp);
+            }
+            /*end thenBranch*/
+            /*elseBranch*/
+            elseStmt = ifStmt->getElse();
+            if (elseStmt != NULL) {
+                if (isa<IfStmt>(elseStmt)) {
+                    ifStmt = cast<IfStmt>(elseStmt);
 
-            Stmt * then_ = ifstmt->getThen();
-            SourceLocation thenStart = then_->getLocStart();
-
-            sprintf(textTmp, "find");
-
-            Stmt * else_ = ifstmt->getElse();
-            if (else_ != NULL)
-                SourceLocation elseStart = else_->getLocStart();
-
-
-
-          //  printBranchLineColFilename("If", lineNum, colNum, filename);
+                    elseLoc = ifStmt->getThen()->getLocStart().getLocWithOffset(1);
+                } else {
+                    elseLoc = elseStmt->getLocStart().getLocWithOffset(1);
+                } 
+                sprintf(textTmp, "\n\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->elseCount)++;", lineNum, sameLineCnt);
+            } else {
+                elseLoc = ifStmt->getLocEnd().getLocWithOffset(1);
+                sprintf (textTmp, " else {\n\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->elseCount)++;}", lineNum, sameLineCnt);
+            }
+            rewriter.InsertTextAfter(elseLoc, textTmp);
+            /*end elseBranch*/
+    
         } else if (isa<ForStmt>(s)) {
-            ForStmt *forstmt = cast<ForStmt>(s);
-            Expr *cond = forstmt->getCond();
+            ForStmt *forStmt = cast<ForStmt>(s);
+            Expr *cond = forStmt->getCond();
             writeMeasure("For", lineNum, cond);
+
+            thenLoc = forStmt->getBody()->getLocStart().getLocWithOffset(1);
+            sprintf(textTmp, "\n\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->thenCount)++;", lineNum, sameLineCnt);
+            rewriter.InsertTextAfter(thenLoc, textTmp);
+
+            elseLoc = forStmt->getLocEnd().getLocWithOffset(1);
+            sprintf(textTmp, ("\n\t//if (!("+rewriter.ConvertToString(cond)+")) {\n\t\tbranchTmp = findBranch(%d, %d);\n\t\t(branchTmp->elseCount)++;\n\t//}").c_str(), lineNum, sameLineCnt);
+            rewriter.InsertTextAfter(elseLoc, textTmp);
+            
           //  printBranchLineColFilename("For", lineNum, colNum, filename);
         } else if (isa<WhileStmt>(s)) {
-            WhileStmt *whilestmt = cast<WhileStmt>(s);
-            Expr *cond = whilestmt->getCond();
+            WhileStmt *whileStmt = cast<WhileStmt>(s);
+            Expr *cond = whileStmt->getCond();
             writeMeasure("While", lineNum, cond);
+
+            thenLoc = whileStmt->getBody()->getLocStart().getLocWithOffset(1);
+            sprintf(textTmp, "\n\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->thenCount)++;", lineNum, sameLineCnt);
+            rewriter.InsertTextAfter(thenLoc, textTmp);
+
+            elseLoc = whileStmt->getLocEnd().getLocWithOffset(1);
+            sprintf(textTmp, ("\n\t//if (!("+rewriter.ConvertToString(cond)+")) {\n\t\tbranchTmp = findBranch(%d, %d);\n\t\t(branchTmp->elseCount)++;\n\t//}").c_str(), lineNum, sameLineCnt);
+            rewriter.InsertTextAfter(elseLoc, textTmp);
           //  printBranchLineColFilename("While", lineNum, colNum, filename);
         } else if (isa<CaseStmt>(s)) {
             writeMeasure("Case", lineNum, s);
+            CaseStmt *caseStmt = cast<CaseStmt>(s);
+            thenLoc = caseStmt->getColonLoc().getLocWithOffset(1);
+            sprintf(textTmp, "\n\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->thenCount)++;", lineNum, sameLineCnt);
+            rewriter.InsertTextAfter(thenLoc, textTmp);
           //  printBranchLineColFilename("Case", lineNum, colNum, filename);
         } else if (isa<DoStmt>(s)) {
-            DoStmt *dostmt = cast<DoStmt>(s);
-            Expr *cond = dostmt->getCond();
+            DoStmt *doStmt = cast<DoStmt>(s);
+            Expr *cond = doStmt->getCond();
             writeMeasure("Do", lineNum, cond);
+            thenLoc = doStmt->getLocStart();
+            sprintf(textTmp, "int first = 1;\n");
+            rewriter.InsertTextAfter(thenLoc, textTmp);
+
+            thenLoc = doStmt->getBody()->getLocStart().getLocWithOffset(1);
+            sprintf(textTmp, 
+                    "\nif(!first){\n\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->thenCount)++;\n} else {\n\tfirst = 0;\n}",
+                    lineNum, 
+                    sameLineCnt);
+            rewriter.InsertTextAfter(thenLoc, textTmp);
+
+            elseLoc = doStmt->getLocEnd().getLocWithOffset(2);
+            sprintf(textTmp, 
+                    ("\n\t//if (!("+rewriter.ConvertToString(cond)+")) {\n\t\tbranchTmp = findBranch(%d, %d);\n\t\t(branchTmp->elseCount)++;\n\t//}").c_str(), 
+                    lineNum, 
+                    sameLineCnt);
+            rewriter.InsertTextAfter(elseLoc, textTmp);
           //  printBranchLineColFilename("Do", lineNum, colNum, filename);
         } else if (isa<DefaultStmt>(s)) {
             writeMeasure("Default", lineNum, NULL);
+            DefaultStmt *defaultStmt = cast<DefaultStmt>(s);
+            thenLoc = defaultStmt->getColonLoc().getLocWithOffset(1);
+            sprintf(textTmp, "\n\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->thenCount)++;", lineNum, sameLineCnt);
+            rewriter.InsertTextAfter(thenLoc, textTmp);
           //  printBranchLineColFilename("Default", lineNum, colNum, filename);
         } else if (isa<ConditionalOperator>(s)) {
             ConditionalOperator *ternary = cast<ConditionalOperator>(s);
@@ -99,8 +156,8 @@ public:
             writeMeasure("?:", lineNum, cond);
           //  printBranchLineColFilename("?:", lineNum, colNum, filename);
         } else if (isa<SwitchStmt>(s)) {
-            SwitchStmt *switchstmt = cast<SwitchStmt>(s);
-            SwitchCase *branch = switchstmt->getSwitchCaseList();
+            SwitchStmt *switchStmt = cast<SwitchStmt>(s);
+            SwitchCase *branch = switchStmt->getSwitchCaseList();
             bool hasDefault = false; 
             for(; branch != NULL ; branch = branch->getNextSwitchCase()) {
                 if (isa<DefaultStmt>(branch)) {
@@ -108,8 +165,13 @@ public:
                     break;
                 }
             }
-            if(!hasDefault)
+            if(!hasDefault) {
                 writeMeasure("ImpDef", lineNum, NULL);
+                thenLoc = switchStmt->getLocEnd();
+                sprintf(textTmp, "\n\t\tbreak;\n\tdefault:\n\t\tbranchTmp = findBranch(%d, %d);\n\t(branchTmp->thenCount)++;\n", lineNum, sameLineCnt);
+                rewriter.InsertTextAfter(thenLoc, textTmp); 
+            }
+           
                    //printBranchLineColFilename("ImpDef", lineNum, colNum, filename);
         }
         return true;
@@ -119,20 +181,27 @@ public:
         // Fill out this function for your homework
         // SourceManager &srcmgr = *m_srcmgr;
         string funcname = f->getName();
-        /*if (f->hasBody()) {
+        /*
+        if (f->hasBody()) {
             cout<<"function:    "<<funcname<<endl;
             SourceLocation startLoc = f->getLocStart();
             filename = srcmgr.getFilename(startLoc);
         }*/
            
         if (!funcname.compare("main")) {
-            char textTmp[700];
+            filename = srcmgr.getFilename(f->getLocStart());
+            filename = filename.substr(0, filename.length()-2) + "-cov-measure.txt";
+            char textTmp[1000];
             CompoundStmt *mainBody = cast<CompoundStmt>(f->getBody());
-            SourceLocation startMainBody = mainBody->getLocStart();
+            SourceLocation startMainBody = mainBody->getLocStart().getLocWithOffset(1);
             SourceLocation endMainBody = mainBody->getLocEnd();
             sprintf(textTmp,"dadfsasd");
+            //cout<<filename<<endl;
+            sprintf(textTmp, "\n\tFILE *fp = fopen(\"%s\", \"a\");\n\tfclose(fp);\n\tfp = fopen(\"%s\", \"r\");\n\tif (fp == NULL) {\n\t\tprintf(\"Error: file pointer is null\");\n\t\texit(1);\n\t}\n\tint r = 0;\n\tchar tmp[255];\n\tBranch *bp;\n\tBranch *prevBranch = NULL;\n\tfor(;!feof(fp); r++) {\n\t\tif (r < 2)\n\t\t\tfgets(tmp, 100, fp);\n\t\telse {\n\t\t\tbp = (struct branch *)malloc(sizeof(struct branch));\n\t\t\tif (r == 2)\n\t\t\t\tbList = bp;\n\t\t\tfscanf(fp, \"%%d\\t%%d\\t%%d\", &bp->lineNum,  &bp->thenCount, &bp->elseCount);\n\t\t\tfgets(tmp,250,fp);\n\t\t\tbp->condExp = (char *)malloc(strlen(tmp)+1);\n\t\t\tstrcpy(bp->condExp, tmp);\n\t\t\tbp->nextBranch = 0;\n\t\t\tbp->lineIdx = 0;\n\t\t\tif (prevBranch) {\n\t\t\t\tif (prevBranch->lineNum == bp->lineNum)\n\t\t\t\t\tbp->lineIdx = prevBranch->lineIdx + 1;\n\t\t\t\tprevBranch->nextBranch = bp;\n\t\t\t}\n\t\t\tprevBranch = bp;\n\t\t}\n\t}\n\tfclose(fp);\n", filename.c_str(), filename.c_str());
+            //cout<<"AAAA"<<endl;
             rewriter.InsertTextAfter(startMainBody,textTmp);
-            sprintf(textTmp, "dadadsad");
+            //sprintf(textTmp, "dadadsad");
+            sprintf(textTmp,"\tfp = fopen(\"%s\", \"w\");\n\tfprintf(fp, \"Line#\\t|# of execution\\t|# of execution\\t|conditional\\n\");\n\tfprintf(fp, \"\\t|of then branch\\t|of else branch\\t|expression\\n\");\n\tBranch *bIter, *bTmp;\n\tint covered = 0;\n\tfor (bIter = bList; bIter!=0;){\n\t\tif (bIter->thenCount!=0 && bIter->elseCount!=0)\n\t\t\tcovered += 2;\n\t\telse if( bIter->thenCount!=0 || bIter->elseCount!=0)\n\t\t\tcovered += 1;\n\t\tfprintf(fp, \"%%8d%%16d%%16d%%s\", bIter->lineNum, bIter->thenCount, bIter->elseCount, bIter->condExp);\n\t\tfree(bIter->condExp);\n\t\tbTmp = bIter;\n\t\tbIter = bIter->nextBranch;\n\t\tfree(bTmp);\n\t}\n\tfprintf(fp, \"Covered: %%d / Total: %d = %%f%%%%\", covered/%d*100);\n\tfclose(fp);\n", filename.c_str(), 111, 111);
             rewriter.InsertTextAfter(endMainBody, textTmp);
         
         }
@@ -144,6 +213,7 @@ public:
     }
     void coverage() {
         measure<<"Covered: 0 / Total: "<<countBranch<<" = 0.0%"<<endl;
+    }
 private:
     int count;
     int countBranch;
@@ -153,6 +223,7 @@ private:
     ofstream &measure;
     int prevLineNum;
     int sameLineCnt;
+    LangOptions &langOpts;
 /*
     void printBranchLineColFilename(string branchName, unsigned int lineNum, 
                               unsigned int colNum, string filename) {
@@ -186,6 +257,8 @@ private:
             string rhs = rewriter.ConvertToString(casestmt->getRHS());
             measure<<lhs<<" == "<<rhs<<endl;
         }
+        else if (!branchName.compare("Default"))
+            measure<<"default"<<endl;
         else if (cond == NULL)
             measure<<"-"<<endl;
         else
@@ -194,7 +267,7 @@ private:
         if(prevLineNum == lineNum)
             sameLineCnt++;
         else
-            sameLineCnt = 1;
+            sameLineCnt = 0;
         prevLineNum = lineNum;
         if ((!branchName.compare("ImpDef")) || (!branchName.compare("Default")) 
                 || (!branchName.compare("Case"))) countBranch ++;
@@ -209,8 +282,8 @@ private:
 class MyASTConsumer : public ASTConsumer
 {
 public:
-    MyASTConsumer(SourceManager &srcmgr, Rewriter &rewriter, ofstream &measure)
-        : Visitor(srcmgr, rewriter, measure) //initialize MyASTVisitor
+    MyASTConsumer(SourceManager &srcmgr, Rewriter &rewriter, ofstream &measure, LangOptions &langOpts)
+        : Visitor(srcmgr, rewriter, measure, langOpts) //initialize MyASTVisitor
     { }
 
     virtual bool HandleTopLevelDecl(DeclGroupRef DR) {
@@ -222,6 +295,9 @@ public:
     }
     void printBranchNum() {
         Visitor.printBranchNum();
+    }
+    void coverage() {
+        Visitor.coverage();
     }
 
 private:
@@ -338,15 +414,42 @@ int main(int argc, char *argv[])
     
     //ofstream output(outputName.c_str());
     // Create an AST consumer instance which is going to get called by ParseAST.
-    MyASTConsumer TheConsumer(SourceMgr, TheRewriter, measure);
+    MyASTConsumer TheConsumer(SourceMgr, TheRewriter, measure, TheCompInst.getLangOpts());
 
     // Parse the file to AST, registering our consumer as the AST consumer.
     ParseAST(TheCompInst.getPreprocessor(), &TheConsumer, TheCompInst.getASTContext());
     const RewriteBuffer *RewriteBuf = TheRewriter.getRewriteBufferFor(SourceMgr.getMainFileID());
+    output<<"#include <stdio.h>"<<endl;
+    output<<"#include <string.h>"<<endl;
+    output<<"#include <stdlib.h>"<<endl;
+    output<<"typedef struct branch {"<<endl;
+    output<<"   int lineNum;"<<endl;
+    output<<"   int thenCount;"<<endl;
+    output<<"   int elseCount;"<<endl;
+    output<<"   int lineIdx;"<<endl;
+    output<<"   char *condExp;"<<endl;
+    output<<"   struct branch *nextBranch;"<<endl;
+    output<<"}Branch;"<<endl<<endl;
+    output<<"Branch *bList;"<<endl;
+    //output<<"int totalBranchLine = 0;"<<endl;
+    output<<"int lineNum;"<<endl;
+    output<<"int lineIdx = 0;"<<endl;
+    output<<"Branch *branchTmp = NULL;"<<endl;
+    output<<"Branch *findBranch(int lineNum, int lineIdx) {"<<endl;
+    output<<"   Branch *bp;"<<endl;
+    output<<"   for (bp = bList; bp != NULL; bp = bp->nextBranch)"<<endl;
+    output<<"       if((bp->lineNum == lineNum) && (bp->lineIdx == lineIdx))"<<endl;
+    output<<"           return bp;"<<endl;
+    output<<"   return NULL;"<<endl;
+    output<<"}"<<endl;
+
     if (RewriteBuf)
         output << string(RewriteBuf->begin(), RewriteBuf->end());
+    
+    TheConsumer.coverage();
     output.close();
     measure.close();
-    TheConsumer.printBranchNum();
+    //TheConsumer.printBranchNum();
+
     return 0;
 }
